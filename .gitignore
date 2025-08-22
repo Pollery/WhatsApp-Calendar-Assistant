@@ -1,0 +1,81 @@
+readme.md
+.env
+# ----------------------------------------
+# Python
+# ----------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+develop-eggs/
+.installed.cfg
+*.manifest
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+*.env
+.env.*
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+*.ipynb
+
+# Cython / compiled files
+*.so
+*.c
+*.cpp
+
+# ----------------------------------------
+# Docker
+# ----------------------------------------
+# Ignore local Docker config files
+.docker/
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Avoid tracking volumes and tmp
+docker-data/
+volumes/
+tmp/
+logs/
+
+# ----------------------------------------
+# Environment & Config
+# ----------------------------------------
+.env
+.env.local
+.env.*.local
+*.secret
+*.key
+*.pem
+*.crt
+
+# ----------------------------------------
+# IDE / Editors
+# ----------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.orig
+
+# ----------------------------------------
+# OS generated files
+# ----------------------------------------
+.DS_Store
+Thumbs.db
+# ----------------------------------------
+# extra
+# ----------------------------------------
+tutorial.md
