@@ -1,5 +1,16 @@
 services:
 
+  bot:
+    build:
+      context: ../python_integration  # path to Python integration folder
+      dockerfile: Dockerfile          # Dockerfile is in python_integration
+    container_name: bot
+    ports:
+      - "9421:9421"
+    environment:
+      - ENV_FILE=.env                 # optional if you have env vars
+    command: ["python", "src/main.py"]  # run your main.py
+    
   evolution-api:
     container_name: evolution_api
     image: atendai/evolution-api:v2.2.3
