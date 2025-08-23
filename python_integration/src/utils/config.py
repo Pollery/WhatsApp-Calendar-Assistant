@@ -2,11 +2,12 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+
 def load_config():
     """
     Load configuration variables.
     - If running locally: loads from .env file in project root.
-    - If running in a container/CI/CD: 
+    - If running in a container/CI/CD:
       uses environment variables set by the platform.
     """
 
@@ -16,8 +17,10 @@ def load_config():
         load_dotenv(dotenv_path=env_path)
 
     config = {
-        "EVOLUTION_API_URL": os.getenv("EVOLUTION_API_URL", "http://localhost:8389"),
-        "LLM_API_KEY": os.getenv("LLM_API_KEY"), 
+        "EVOLUTION_API_URL": os.getenv(
+            "EVOLUTION_API_URL", "http://localhost:8389"
+        ),
+        "LLM_API_KEY": os.getenv("LLM_API_KEY"),
         "MY_NUMBER": os.getenv("MY_NUMBER"),
         "BASE_URL": os.getenv("BASE_URL", "http://localhost:8389"),
         "AUTHENTICATION_API_KEY": os.getenv("AUTHENTICATION_API_KEY"),
@@ -26,6 +29,8 @@ def load_config():
     # Check required vars
     missing = [k for k, v in config.items() if v is None]
     if missing:
-        raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+        raise RuntimeError(
+            f"Missing required environment variables: {', '.join(missing)}"
+        )
 
     return config
