@@ -25,6 +25,7 @@ def load_config():
         "BASE_URL": os.getenv("BASE_URL", "http://localhost:8389"),
         "AUTHENTICATION_API_KEY": os.getenv("AUTHENTICATION_API_KEY"),
         "INSTANCE_NAME": os.getenv("INSTANCE_NAME", "wpp-tablet"),
+        "DEFAULT_CALENDAR_NAME": os.getenv("DEFAULT_CALENDAR_NAME", "wpp-llm"),
     }
     # Check required vars
     missing = [k for k, v in config.items() if v is None]

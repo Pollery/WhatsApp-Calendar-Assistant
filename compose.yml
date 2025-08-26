@@ -1,0 +1,71 @@
+services:
+  # Serviço para o bot principal da aplicação
+  bot:
+    # O contexto de build é a raiz do projeto.
+    # O Dockerfile é especificado a partir da raiz.
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    # Monta os volumes para sincronizar o código.
+    # Isso permite que você edite os arquivos localmente e as mudanças sejam refletidas no container.
+    volumes:
+      - ./python_integration:/app/python_integration
+      - ./google_api:/app/google_api
+      - ./llm_integration:/app/llm_integration
+      - ./token_files:/app/token_files
+    # Adiciona as dependências do serviço
+    depends_on:
+      - redis
+      - postgres
+      - evolution-api
+    # Expõe a porta 9421
+    ports:
+      - "9421:9421"
+    command: python python_integration/src/main.py
+
+  # Serviço da Evolution API (ajustado com a sua configuração)
+  evolution-api:
+    container_name: evolution_api
+    image: atendai/evolution-api:v2.2.3
+    ports:
+      - "8389:8080"
+    env_file:
+      - .env
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+
+  # Serviço do PostgreSQL (ajustado com a sua configuração)
+  postgres:
+    container_name: postgres
+    image: postgres:15
+    command: ["postgres", "-c", "max_connections=1000"]
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - 5432
+    restart: always
+
+  # Serviço do Redis (ajustado com a sua configuração)
+  redis:
+    image: redis:latest
+    container_name: redis
+    command: >
+      redis-server --port 6379 --appendonly yes
+    volumes:
+      - redis:/data
+    ports:
+      - "6379:6379"
+    restart: always
+
+volumes:
+  evolution_instances:
+  postgres_data:
+  redis:
