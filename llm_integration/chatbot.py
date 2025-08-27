@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.pydantic_v1 import BaseModel, Field, validator
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 # Get the path to the project's root directory
 project_root = os.path.dirname(
@@ -41,9 +41,12 @@ def get_current_saopaulo_date() -> str:
 # --- NOVOS MODELOS PYDANTIC PARA UMA SAÍDA MAIS FLEXÍVEL ---
 class RecurrenceDetails(BaseModel):
     """Detalhes para a recorrência de um evento."""
-    rule: str = Field(..., description="A regra de recorrência, como 'DAILY', 'WEEKLY', 'MONTHLY'.")
-    until_date: Optional[str] = Field(None, description="A data final da recorrência no formato 'YYYY-MM-DD'. Se não fornecida, a recorrência é para um número de repetições.")
-    count: Optional[int] = Field(None, description="O número de vezes que o evento deve se repetir. Exclusivo com `until_date`.")
+    rule: Literal["DAILY", "WEEKLY", "MONTHLY", "YEARLY"] = Field(..., description="A regra de recorrência: 'DAILY', 'WEEKLY', 'MONTHLY', ou 'YEARLY'.")
+    until_date: Optional[str] = Field(None, description="A data final da recorrência no formato 'YYYY-MM-DD'.")
+    count: Optional[int] = Field(None, description="O número de vezes que o evento deve se repetir.")
+    byweekday: Optional[List[Literal["MO", "TU", "WE", "TH", "FR", "SA", "SU"]]] = Field(None, description="Lista de dias da semana (ex: 'MO', 'TU', 'WE').")
+    interval: Optional[int] = Field(1, description="A frequência com que a regra se repete (ex: 2 para 'a cada duas semanas'). Padrão é 1.")
+
 
 class EventData(BaseModel):
     """Dados de um evento para o Google Calendar API, incluindo recorrência."""
@@ -58,8 +61,8 @@ class EventData(BaseModel):
 
 class GoogleCalendarAction(BaseModel):
     """Ação a ser executada no Google Calendar."""
-    action: Literal["create", "delete", "list", "update"] = Field(
-        description="A ação a ser executada. Deve ser 'create', 'delete', 'list' ou 'update'."
+    action: Literal["create", "delete", "list", "update", "delete_all_events"] = Field(
+        description="A ação a ser executada. Deve ser 'create', 'delete', 'list', 'update' ou 'delete_all_events'."
     )
     target: Literal["event", "calendar"] = Field(
         description="O alvo da ação. Deve ser 'event' ou 'calendar'."
@@ -73,6 +76,10 @@ class GoogleCalendarAction(BaseModel):
     event_summary_or_id: Optional[str] = Field(
         None, description="O resumo ou ID de um evento a ser excluído ou atualizado."
     )
+    update_data: Optional[dict] = Field(
+        None, description="Um dicionário contendo as chaves e valores a serem atualizados. Ex: {'start_date': '2025-08-30'}"
+    )
+
 
     @validator('event_details', always=True)
     def validate_event_details(cls, v, values):
@@ -125,24 +132,37 @@ class GeminiChatbot:
             -   **description**: Uma breve descrição do evento.
             -   **IMPORTANTE**: Para eventos recorrentes, use o novo campo `recurrence_details` dentro de `event_details`.
             Exemplo: "Agende um almoço amanhã às 13h no restaurante de sempre" -> {{"action": "create", "target": "event", "event_details": {{"summary": "Almoço", "start_date": "2025-08-29", "end_date": "2025-08-29", "start_time": "13:00:00", "end_time": "14:00:00", "location": "Restaurante de sempre", "description": "Almoço com a equipe."}}}}
-            
+                    
         2.a. **CRIAR EVENTO RECORRENTE**: Se o usuário pedir para um evento se repetir.
-            -   O LLM deve extrair os detalhes do evento e também a regra de recorrência e a data final (ou contagem).
-            -   Use `recurrence_details` com o `rule` apropriado (ex: "DAILY", "WEEKLY", "MONTHLY") e a `until_date` (formato YYYY-MM-DD). Se a contagem for especificada (ex: "30 vezes"), use `count`.
-            Exemplo: "Agende um lembrete para tomar remédio todo dia às 21h por 30 dias" -> {{"action": "create", "target": "event", "event_details": {{"summary": "Tomar Remédio", "start_date": "2025-08-29", "end_date": "2025-08-29", "start_time": "21:00:00", "end_time": "21:30:00", "recurrence_details": {{"rule": "DAILY", "until_date": "2025-09-28"}}}}}}
-
+            - Se o usuário especificar um número de semanas (ex: '3 semanas') e também dias da semana (ex: 'quartas, quintas e sextas'), o campo 'count' deve ser a multiplicação do número de semanas pelo número de dias da semana.
+            Exemplo: "Agendar uma investigação pessoal às quartas, quintas e sextas pelas próximas 3 semanas." -> O 'count' deve ser 9 (3 semanas * 3 dias/semana).
+        Exemplo: "marcar investigação pessoal de segunda a sexta das 21:30 ate o fim da semana que vem" -> {{"action": "create", "target": "event", "event_details": {{"summary": "investigação pessoal", "start_date": "2025-09-01", "end_date": "2025-09-01", "start_time": "21:30:00", "end_time": "23:59:00", "recurrence_details": {{"rule": "WEEKLY", "byweekday": ["MO", "TU", "WE", "TH", "FR"], "until_date": "2025-09-12"}}}}}}
         3.  **LISTAR**: Se o usuário pedir para ver eventos ou calendários, use `action: "list"`. Use `target: "event"` ou `target: "calendar"`.
             -   Para listar eventos, use `target: "event"` e defina `calendar_name` para o nome do calendário (ex: "Trabalho", "Pessoal").
             -   Para listar calendários, use `target: "calendar"`.
             Exemplo: "Mostre meus eventos" -> {{"action": "list", "target": "event", "calendar_name": "{default_calendar_name}"}}
             Exemplo: "Quais são meus calendários?" -> {{"action": "list", "target": "calendar"}}
             
-        4.  **DELETAR/EXCLUIR EVENTO**: Se o usuário pedir para apagar um evento, use `action: "delete"` e `target: "event"`. Use `event_summary_or_id` para identificar o evento.
-            Exemplo: "Delete a reunião de hoje" -> {{"action": "delete", "target": "event", "event_summary_or_id": "Reunião de hoje"}}
-
-        5.  **ATUALIZAR/EDITAR EVENTO**: Se o usuário pedir para mudar um evento, use `action: "update"` e `target: "event"`. Use `event_summary_or_id` para identificar o evento. Forneça o campo `event_details` com os campos que devem ser atualizados.
-            Exemplo: "Mude a reunião de 'Reunião com o cliente' para amanhã" -> {{"action": "update", "target": "event", "event_summary_or_id": "Reunião com o cliente", "event_details": {{"start_date": "2025-08-29", "end_date": "2025-08-29"}}}}
+        4.  **DELETAR/EXCLUIR EVENTO**:
+            - **Excluir um evento específico**: Se o usuário pedir para apagar um evento pelo nome, use `action: "delete"` e `target: "event"`. Use `event_summary_or_id` para identificar o evento.
+            - **Excluir todos os eventos**: Se o usuário usar uma frase como "apagar todos os eventos", "deletar tudo" ou "limpar o calendário", use a ação `action: "delete_all_events"`. Esta é uma ação especial que não precisa de outros detalhes.
             
+            Exemplo: "Delete a reunião de hoje" -> {{"action": "delete", "target": "event", "event_summary_or_id": "Reunião de hoje"}}
+            Exemplo: "Delete todos os eventos até o fim do ano" -> {{"action": "delete_all_events", "target": "event"}}
+
+
+       5.  **ATUALIZAR/EDITAR/ADIAR EVENTO**:
+            - Use `action: "update"` e `target: "event"`.
+            - A informação do evento (como o nome) deve ir em `event_summary_or_id`.
+            - Use o campo `update_data` para fornecer os dados que devem ser alterados.
+            - Para adiar ou alterar a data, use `start_date` e `end_date` em `update_data`.
+            - Se a intenção for adiar por um período (ex: "uma semana"), o valor em `update_data` deve ser um "offset" que o seu código interpretará, como `start_date_offset`.
+
+            Exemplo: "Mude a reunião com o cliente para amanhã" -> {{"action": "update", "target": "event", "event_summary_or_id": "Reunião com o cliente", "update_data": {{"start_date": "2025-08-27", "end_date": "2025-08-27"}}}}
+            
+            Exemplo: "Adie todos os eventos teste em uma semana" -> {{"action": "update", "target": "event", "event_summary_or_id": "teste", "update_data": {{"start_date_offset": "+7 days"}} }}
+        
+        
         Regras para o JSON de saída:
         - O retorno deve ser SOMENTE um objeto JSON válido, sem texto adicional.
         - Os nomes das chaves devem ser exatamente como definidos no esquema.
