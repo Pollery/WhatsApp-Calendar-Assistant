@@ -2,6 +2,8 @@
 bagunça.md
 .env
 client_secret.json
+token_calendar_v3.json
+token_files/
 # ----------------------------------------
 # Python
 # ----------------------------------------
